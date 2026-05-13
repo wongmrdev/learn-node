@@ -2,7 +2,7 @@ import { Redis } from 'ioredis';
 
 export const QUEUE_KEY = 'learn-node:jobs';
 export const COUNTER_KEY = 'learn-node:counter';
-export const WORKER_COUNT = 5;
+export const WORKER_COUNT = 50;
 
 export type WorkerStatus = 'idle' | 'processing';
 

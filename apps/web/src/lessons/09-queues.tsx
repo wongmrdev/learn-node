@@ -56,12 +56,7 @@ const EMPTY_SNAPSHOT: Snapshot = {
   depth: 0,
   processed: 0,
   throughput: 0,
-  workers: Array.from({ length: 5 }, (_, i) => ({
-    id: i + 1,
-    status: 'idle',
-    currentMessageId: null,
-    lastFinishedAt: null,
-  })),
+  workers: [],
 };
 
 function useQueueSnapshot(): { snapshot: Snapshot; connected: boolean } {
@@ -162,11 +157,15 @@ function Interactive({ pushLog, busy, setBusy }: LessonInteractiveProps) {
         />
       </div>
 
-      <div className="worker-grid">
-        {snapshot.workers.map((w) => (
-          <WorkerCard key={w.id} worker={w} />
-        ))}
-      </div>
+      {snapshot.workers.length > 0 ? (
+        <div className="worker-grid">
+          {snapshot.workers.map((w) => (
+            <WorkerCard key={w.id} worker={w} />
+          ))}
+        </div>
+      ) : (
+        <div className="worker-grid-empty">Waiting for workers...</div>
+      )}
 
       <div className="runner-card queue-controls">
         <span className="runner-label">Push messages onto the queue:</span>

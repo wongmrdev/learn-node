@@ -616,19 +616,31 @@ body::before {
 
 .worker-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
 }
 
 .worker-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   transition: border 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  min-width: 0;
+}
+
+.worker-grid-empty {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  padding: 18px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 .worker-card.busy {
@@ -671,10 +683,13 @@ body::before {
 
 .worker-msg {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text);
-  min-height: 18px;
+  min-height: 16px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .worker-msg-empty { color: var(--text-dim); }
@@ -683,7 +698,6 @@ body::before {
 
 @media (max-width: 900px) {
   .queue-stats { grid-template-columns: 1fr; }
-  .worker-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* Lesson navigation */
