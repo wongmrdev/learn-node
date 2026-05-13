@@ -1,5 +1,6 @@
 import Fastify, { type FastifyPluginAsync } from 'fastify';
 import cors from '@fastify/cors';
+import { enqueueMany, getSnapshot, resetQueue, startWorkers } from './queue.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -148,6 +149,56 @@ app.get<{ Params: { id: string } }>('/api/users/:id', async (req) => {
   if (!user) throw new NotFoundError(`No user with id "${req.params.id}"`);
   return user;
 });
+
+// 09: message queue (Redis-backed)
+app.post<{ Body: { count: number; payload?: string } }>(
+  '/api/queue/enqueue',
+  {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['count'],
+        properties: {
+          count: { type: 'integer', minimum: 1, maximum: 100000 },
+          payload: { type: 'string', maxLength: 500 },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  async (req) => {
+    const pushed = await enqueueMany(req.body.count, req.body.payload ?? 'work');
+    return { enqueued: pushed };
+  },
+);
+
+app.post('/api/queue/reset', async () => {
+  await resetQueue();
+  return { ok: true };
+});
+
+app.get('/api/queue/state', async () => getSnapshot());
+
+app.get('/api/queue/stream', async (req, reply) => {
+  reply.raw.setHeader('Content-Type', 'text/event-stream');
+  reply.raw.setHeader('Cache-Control', 'no-cache');
+  reply.raw.setHeader('Connection', 'keep-alive');
+  reply.hijack();
+
+  let closed = false;
+  req.raw.on('close', () => {
+    closed = true;
+  });
+
+  while (!closed) {
+    const snapshot = await getSnapshot();
+    reply.raw.write(`data: ${JSON.stringify(snapshot)}\n\n`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  reply.raw.end();
+});
+
+startWorkers();
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '127.0.0.1' });

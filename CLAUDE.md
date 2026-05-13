@@ -31,6 +31,8 @@ Every package, example, and lesson here exists to demonstrate a Node.js or Fasti
 - If a feature needs persistence (Postgres, Redis, SQLite-server, etc.), add a **Dockerfile** (or compose service) so it runs locally with one command.
 - Keep a `docker-compose.yml` at the root (or per-package as needed) so `docker compose up` brings up the local stack.
 - For ephemeral or in-memory examples, prefer no persistence at all — the lesson is the point.
+- Stateful subsystems (queue workers, websocket hubs) live in their own module under `apps/api/src/` (e.g. [apps/api/src/queue.ts](apps/api/src/queue.ts)). The route file imports the public surface and stays focused on HTTP.
+- Backing services connect via env-overridable URLs with a localhost default: e.g. `process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'`. Never hardcode a non-overridable URL.
 
 ## Current layout
 
@@ -45,7 +47,7 @@ Every package, example, and lesson here exists to demonstrate a Node.js or Fasti
 - **TS runners.** Backend uses `tsx` for dev and `tsc` for typecheck/build. Frontend uses Vite + `tsc -b` for typecheck. No `ts-node`, no Babel.
 - **Top-level await** is fine in `apps/api` (NodeNext + ESM).
 - **React 19** with the `react-jsx` runtime — no need to import `React` for JSX.
-- **ESM imports include the file extension** (`./foo.ts`, `./bar.tsx`). The API is NodeNext, the UI uses `allowImportingTsExtensions`. Don't drop the extension.
+- **ESM imports include the file extension.** In `apps/api` (NodeNext) write `./foo.js` — the runtime resolves it to `.ts` via tsx/tsc emit. In `apps/web` (`allowImportingTsExtensions`) write `./foo.ts` / `./bar.tsx` directly. Don't drop the extension in either app.
 
 ## Lesson pattern
 
