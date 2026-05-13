@@ -55,6 +55,13 @@ The UI is a lesson catalog. To add a new lesson:
 2. **Create a lesson file** at `apps/web/src/lessons/NN-slug.tsx`. Default-export a `Lesson` (see [apps/web/src/lessons/types.ts](apps/web/src/lessons/types.ts)) with: `slug`, `number`, `title`, `summary`, `explanation` (JSX), `code` (string of the server snippet), `Interactive` (a React component that takes `LessonInteractiveProps`).
 3. **Register it** in [apps/web/src/lessons/index.ts](apps/web/src/lessons/index.ts).
 4. The `Interactive` component calls `runRequest` / `runStream` from `src/lib/runner.ts`, which pushes structured `LogEntry` rows into the shared request console — never `fetch` directly from a lesson.
+5. If a lesson needs custom request headers (auth, content negotiation), pass them via the `headers` option on `runRequest` — don't bypass the runner.
+
+### Server-side patterns the lessons rely on
+
+- **Per-request typed state**: use `app.decorateRequest('foo', default)` plus `declare module 'fastify' { interface FastifyRequest { foo: T } }` to attach typed properties from a hook. See the `traceId` pattern in [apps/api/src/server.ts](apps/api/src/server.ts).
+- **Encapsulation**: plugins registered with `app.register(plugin, { prefix })` get their own scope — hooks/decorators inside don't leak out. Use this for auth boundaries.
+- **Errors**: throw custom error classes with `statusCode` and `errorCode` fields; route them in `setErrorHandler`. Don't `reply.code(...).send(...)` directly inside handlers — keep the error shape in one place.
 
 ### Visual system
 

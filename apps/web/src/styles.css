@@ -519,6 +519,53 @@ body::before {
   50.01%, 100% { opacity: 0; }
 }
 
+/* Lesson navigation */
+.lesson-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.lesson-nav-btn {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 160ms ease;
+  font-family: var(--sans);
+}
+
+.lesson-nav-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.lesson-nav-btn.next { text-align: right; align-items: flex-end; }
+
+.lesson-nav-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.lesson-nav-title { font-size: 15px; font-weight: 500; color: var(--text); }
+
+.lesson-nav-spacer { display: block; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

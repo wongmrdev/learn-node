@@ -17,11 +17,16 @@ function tryFormatJSON(text: string): string {
   }
 }
 
+export type RunOptions = {
+  headers?: Record<string, string>;
+};
+
 export async function runRequest(
   method: 'GET' | 'POST',
   path: string,
   body: unknown,
   push: LogPusher,
+  options: RunOptions = {},
 ): Promise<void> {
   const id = newId();
   const ts = nowTime();
@@ -37,9 +42,11 @@ export async function runRequest(
   };
   push(base);
   try {
+    const headers: Record<string, string> = { ...(options.headers ?? {}) };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     const res = await fetch(path, {
       method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();

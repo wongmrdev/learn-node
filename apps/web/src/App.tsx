@@ -20,18 +20,33 @@ export function App() {
     });
   }, []);
 
-  const activeLesson = lessons.find((l) => l.slug === activeSlug) ?? lessons[0];
+  const activeIndex = Math.max(
+    0,
+    lessons.findIndex((l) => l.slug === activeSlug),
+  );
+  const activeLesson = lessons[activeIndex];
+  const prev = activeIndex > 0 ? lessons[activeIndex - 1] : null;
+  const next = activeIndex < lessons.length - 1 ? lessons[activeIndex + 1] : null;
+
+  const selectLesson = (slug: string) => {
+    setActiveSlug(slug);
+    window.scrollTo({ top: 0 });
+    document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="app">
       <Sidebar
         lessons={lessons}
         activeSlug={activeSlug}
-        onSelect={setActiveSlug}
+        onSelect={selectLesson}
       />
       <main className="main">
         <LessonView
           lesson={activeLesson}
+          prev={prev}
+          next={next}
+          onSelect={selectLesson}
           pushLog={pushLog}
           busy={busy}
           setBusy={setBusy}

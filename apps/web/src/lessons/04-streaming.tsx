@@ -7,9 +7,10 @@ const code = `app.get('/api/stream', async (_req, reply) => {
   reply.raw.setHeader('Cache-Control', 'no-cache');
   reply.hijack();
 
-  for (let i = 1; i <= 10; i++) {
-    reply.raw.write(\`data: tick \${i}/10\\n\\n\`);
-    await new Promise((r) => setTimeout(r, 350));
+  const ticks = 100;
+  for (let i = 1; i <= ticks; i++) {
+    reply.raw.write(\`data: tick \${i}/\${ticks}\\n\\n\`);
+    await new Promise((r) => setTimeout(r, 50));
   }
   reply.raw.write('data: [DONE]\\n\\n');
   reply.raw.end();
