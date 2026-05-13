@@ -232,6 +232,16 @@ const lesson: Lesson = {
   explanation: (
     <>
       <p>
+        <strong>Heads up before you start:</strong> the "workers" in this lesson
+        are not OS threads or processes. They're async functions on{' '}
+        <strong>one</strong> Node thread, each holding its own Redis connection.
+        The "work" each one does is a <code>setTimeout</code> — which doesn't
+        burn CPU at all. That's why bumping <code>WORKER_COUNT</code> to 500
+        gave you 10× throughput: nothing was actually competing for the thread.
+        Lesson 10 unmasks this; Lesson 11 escapes it. For now, take this lesson
+        as the <em>shape</em> of a queue, not its real performance.
+      </p>
+      <p>
         When a request triggers work that's slow, flaky, or expensive — sending
         email, generating a thumbnail, calling a third-party API — you don't
         want the user waiting. Push a <strong>message</strong> onto a queue,

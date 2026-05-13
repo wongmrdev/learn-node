@@ -555,6 +555,10 @@ body::before {
   gap: 14px;
 }
 
+.queue-stats.five {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .stat-card {
   background: linear-gradient(180deg, var(--bg-elev), var(--bg-deep));
   border: 1px solid var(--border);
@@ -579,6 +583,22 @@ body::before {
 .stat-cyan { color: var(--accent); }
 .stat-green { color: var(--success); }
 .stat-magenta { color: var(--accent-2); }
+.stat-gauge.stat-ok { color: var(--text-muted); }
+.stat-gauge.stat-warn { color: var(--warn); }
+.stat-gauge.stat-danger { color: var(--error); }
+.stat-gauge.stat-danger { animation: gauge-pulse 1.4s ease-in-out infinite; }
+
+@keyframes gauge-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 85, 119, 0.0); }
+  50% { box-shadow: inset 0 0 0 1px rgba(255, 85, 119, 0.4), 0 0 24px rgba(255, 85, 119, 0.18); }
+}
+
+.stat-value small {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-left: 4px;
+  text-shadow: none;
+}
 
 .stat-label {
   font-family: var(--mono);
@@ -696,8 +716,64 @@ body::before {
 
 .queue-controls { margin-top: 8px; }
 
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mode-btn {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 140ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-btn small {
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-dim);
+}
+
+.mode-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+.mode-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(0, 240, 255, 0.06);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(0, 240, 255, 0.18);
+}
+
+.mode-btn.active small { color: var(--accent); }
+
+.mode-btn.magenta.active {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+  background: rgba(255, 62, 165, 0.06);
+  box-shadow: 0 0 0 1px var(--accent-2), 0 0 18px rgba(255, 62, 165, 0.2);
+}
+
+.mode-btn.magenta.active small { color: var(--accent-2); }
+
+@media (max-width: 1100px) {
+  .queue-stats.five { grid-template-columns: repeat(3, 1fr); }
+}
+
 @media (max-width: 900px) {
-  .queue-stats { grid-template-columns: 1fr; }
+  .queue-stats,
+  .queue-stats.five { grid-template-columns: 1fr; }
 }
 
 /* Lesson navigation */

@@ -1,10 +1,13 @@
 import { Redis } from 'ioredis';
+import { createHash } from 'node:crypto';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 export const QUEUE_KEY = 'learn-node:jobs';
 export const COUNTER_KEY = 'learn-node:counter';
-export const WORKER_COUNT = 50;
+export const WORKER_COUNT = 500;
 
 export type WorkerStatus = 'idle' | 'processing';
+export type WorkMode = 'sleep' | 'cpu';
 
 export type WorkerState = {
   id: number;
@@ -16,6 +19,8 @@ export type WorkerState = {
 export type Message = {
   id: string;
   payload: string;
+  mode: WorkMode;
+  durationMs: number;
   enqueuedAt: number;
 };
 
@@ -64,11 +69,55 @@ function currentThroughput(): number {
   return processedTimestamps.length;
 }
 
-async function simulateWork(): Promise<void> {
-  // 5-50ms of "work" per message.
-  const ms = 5 + Math.floor(Math.random() * 45);
+// SLEEP mode: yields to the event loop the whole time. Zero CPU.
+async function sleepWork(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// CPU mode: blocks the thread with synchronous sha256 work for ~ms wall-clock.
+// Nothing else on the Node thread can make progress while this runs.
+function cpuWork(ms: number): void {
+  const buf = Buffer.alloc(64, 0);
+  const target = Date.now() + ms;
+  while (Date.now() < target) {
+    for (let i = 0; i < 500; i++) {
+      createHash('sha256').update(buf).digest();
+    }
+  }
+}
+
+async function doWork(msg: Message): Promise<void> {
+  if (msg.mode === 'cpu') {
+    cpuWork(msg.durationMs);
+  } else {
+    await sleepWork(msg.durationMs);
+  }
+}
+
+// --- Telemetry: event-loop lag and process CPU%, sampled in the background. ---
+const elHist = monitorEventLoopDelay({ resolution: 10 });
+elHist.enable();
+
+let cachedEventLoopLagMs = 0;
+setInterval(() => {
+  cachedEventLoopLagMs = elHist.percentile(99) / 1e6;
+  elHist.reset();
+}, 1000);
+
+let cachedCpuPercent = 0;
+let prevCpu = process.cpuUsage();
+let prevWallMs = Date.now();
+setInterval(() => {
+  const wallNow = Date.now();
+  const delta = process.cpuUsage(prevCpu);
+  const wallElapsedMs = wallNow - prevWallMs;
+  prevCpu = process.cpuUsage();
+  prevWallMs = wallNow;
+  if (wallElapsedMs > 0) {
+    const cpuMs = (delta.user + delta.system) / 1000;
+    cachedCpuPercent = Math.min(100 * (cpuMs / wallElapsedMs), 999);
+  }
+}, 500);
 
 async function workerLoop(state: WorkerState): Promise<void> {
   const client = makeRedis();
@@ -79,17 +128,24 @@ async function workerLoop(state: WorkerState): Promise<void> {
       if (!result) continue;
       const [, raw] = result;
 
-      let msg: Message;
+      let parsed: Partial<Message>;
       try {
-        msg = JSON.parse(raw) as Message;
+        parsed = JSON.parse(raw);
       } catch {
         continue;
       }
+      const msg: Message = {
+        id: parsed.id ?? 'unknown',
+        payload: parsed.payload ?? '',
+        mode: parsed.mode === 'cpu' ? 'cpu' : 'sleep',
+        durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : 20,
+        enqueuedAt: parsed.enqueuedAt ?? Date.now(),
+      };
 
       state.status = 'processing';
       state.currentMessageId = msg.id;
 
-      await simulateWork();
+      await doWork(msg);
 
       recordProcessed();
       state.lastFinishedAt = Date.now();
@@ -109,7 +165,12 @@ export function startWorkers(): void {
   }
 }
 
-export async function enqueueMany(count: number, payload: string): Promise<number> {
+export async function enqueueMany(
+  count: number,
+  payload: string,
+  mode: WorkMode,
+  durationMs: number,
+): Promise<number> {
   // Use a pipeline for throughput; chunk to avoid one giant atomic command.
   const CHUNK = 1000;
   let nextSeq = await redis.incrby(COUNTER_KEY, count);
@@ -123,6 +184,8 @@ export async function enqueueMany(count: number, payload: string): Promise<numbe
       const msg: Message = {
         id: `msg-${seq}`,
         payload,
+        mode,
+        durationMs,
         enqueuedAt: Date.now(),
       };
       pipeline.lpush(QUEUE_KEY, JSON.stringify(msg));
@@ -147,6 +210,8 @@ export async function getSnapshot(): Promise<{
   depth: number;
   processed: number;
   throughput: number;
+  eventLoopLagMs: number;
+  cpuPercent: number;
   workers: WorkerState[];
 }> {
   const depth = await redis.llen(QUEUE_KEY);
@@ -154,6 +219,8 @@ export async function getSnapshot(): Promise<{
     depth,
     processed: processedTotal,
     throughput: currentThroughput(),
+    eventLoopLagMs: cachedEventLoopLagMs,
+    cpuPercent: cachedCpuPercent,
     workers: workers.map((w) => ({ ...w })),
   };
 }

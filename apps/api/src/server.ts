@@ -151,7 +151,14 @@ app.get<{ Params: { id: string } }>('/api/users/:id', async (req) => {
 });
 
 // 09: message queue (Redis-backed)
-app.post<{ Body: { count: number; payload?: string } }>(
+app.post<{
+  Body: {
+    count: number;
+    payload?: string;
+    mode?: 'sleep' | 'cpu';
+    durationMs?: number;
+  };
+}>(
   '/api/queue/enqueue',
   {
     schema: {
@@ -161,13 +168,20 @@ app.post<{ Body: { count: number; payload?: string } }>(
         properties: {
           count: { type: 'integer', minimum: 1, maximum: 100000 },
           payload: { type: 'string', maxLength: 500 },
+          mode: { type: 'string', enum: ['sleep', 'cpu'] },
+          durationMs: { type: 'integer', minimum: 1, maximum: 500 },
         },
         additionalProperties: false,
       },
     },
   },
   async (req) => {
-    const pushed = await enqueueMany(req.body.count, req.body.payload ?? 'work');
+    const pushed = await enqueueMany(
+      req.body.count,
+      req.body.payload ?? 'work',
+      req.body.mode ?? 'sleep',
+      req.body.durationMs ?? 20,
+    );
     return { enqueued: pushed };
   },
 );
