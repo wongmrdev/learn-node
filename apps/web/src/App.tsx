@@ -1,23 +1,50 @@
-import { useEffect, useState } from 'react';
-
-type HelloResponse = { message: string };
+import { useCallback, useState } from 'react';
+import { Sidebar } from './components/Sidebar.tsx';
+import { LessonView } from './components/LessonView.tsx';
+import { RequestConsole } from './components/RequestConsole.tsx';
+import { lessons } from './lessons/index.ts';
+import type { LogEntry } from './lib/types.ts';
 
 export function App() {
-  const [message, setMessage] = useState<string>('loading...');
+  const [activeSlug, setActiveSlug] = useState<string>(lessons[0].slug);
+  const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/hello')
-      .then((r) => r.json() as Promise<HelloResponse>)
-      .then((d) => setMessage(d.message))
-      .catch((e: unknown) => setMessage(`error: ${String(e)}`));
+  const pushLog = useCallback((entry: LogEntry) => {
+    setEntries((prev) => {
+      const i = prev.findIndex((e) => e.id === entry.id);
+      if (i === -1) return [...prev, entry];
+      const next = prev.slice();
+      next[i] = entry;
+      return next;
+    });
   }, []);
 
+  const activeLesson = lessons.find((l) => l.slug === activeSlug) ?? lessons[0];
+
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-      <h1>learn-node</h1>
-      <p>
-        API says: <strong>{message}</strong>
-      </p>
-    </main>
+    <div className="app">
+      <Sidebar
+        lessons={lessons}
+        activeSlug={activeSlug}
+        onSelect={setActiveSlug}
+      />
+      <main className="main">
+        <LessonView
+          lesson={activeLesson}
+          pushLog={pushLog}
+          busy={busy}
+          setBusy={setBusy}
+        />
+        <section className="section">
+          <h2>Request console</h2>
+          <RequestConsole
+            entries={entries}
+            onClear={() => setEntries([])}
+            active={busy}
+          />
+        </section>
+      </main>
+    </div>
   );
 }
