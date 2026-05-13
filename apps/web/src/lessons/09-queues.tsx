@@ -39,11 +39,20 @@ async function workerLoop(state) {
 }`;
 
 type WorkerSnapshot = {
-  id: number;
+  id: string;
+  processId?: string;
   status: 'idle' | 'processing';
   currentMessageId: string | null;
-  lastFinishedAt: number | null;
+  lastFinishedAt?: number | null;
 };
+
+function shortWorkerId(id: string): string {
+  // "59E6F8B8FA6C.1.0" -> "59e6f8.0"
+  const parts = id.split('.');
+  const host = (parts[0] ?? id).slice(0, 6).toLowerCase();
+  const slot = parts[parts.length - 1] ?? '?';
+  return `${host}.${slot}`;
+}
 
 type Snapshot = {
   depth: number;
@@ -210,10 +219,10 @@ function WorkerCard({ worker }: { worker: WorkerSnapshot }) {
   return (
     <div className={`worker-card ${busy ? 'busy' : ''}`}>
       <div className="worker-header">
-        <span className="worker-id">Worker {String(worker.id).padStart(2, '0')}</span>
+        <span className="worker-id" title={worker.id}>{shortWorkerId(worker.id)}</span>
         <span className={`worker-status ${busy ? 'busy' : 'idle'}`}>
           <span className="worker-dot" />
-          {busy ? 'processing' : 'idle'}
+          {busy ? 'busy' : 'idle'}
         </span>
       </div>
       <div className="worker-msg">

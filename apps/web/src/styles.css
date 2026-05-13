@@ -766,19 +766,29 @@ body::before {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  min-width: 0;
 }
 
-.worker-id { color: var(--text-muted); }
+.worker-id {
+  color: var(--text-muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .worker-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--text-dim);
+  flex-shrink: 0;
 }
 
 .worker-status.busy { color: var(--accent); }
