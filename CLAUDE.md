@@ -32,6 +32,20 @@ Every package, example, and lesson here exists to demonstrate a Node.js or Fasti
 - Keep a `docker-compose.yml` at the root (or per-package as needed) so `docker compose up` brings up the local stack.
 - For ephemeral or in-memory examples, prefer no persistence at all — the lesson is the point.
 
+## Current layout
+
+- `apps/api` — Fastify server (`@learn-node/api`). Dev: `tsx watch`. Listens on `127.0.0.1:3000`. All HTTP routes live under `/api/*`.
+- `apps/web` — Vite + React 19 UI (`@learn-node/web`). Dev: `vite` on `5173`. Proxies `/api` → `http://localhost:3000` so the browser never hits CORS in dev.
+- `packages/*` — shared libraries (none yet).
+- `skills/` — reusable patterns/playbooks for agents working in this repo.
+
+## Conventions
+
+- **Route prefix.** API routes are always under `/api/*` so the Vite proxy rule stays a single line.
+- **TS runners.** Backend uses `tsx` for dev and `tsc` for typecheck/build. Frontend uses Vite + `tsc -b` for typecheck. No `ts-node`, no Babel.
+- **Top-level await** is fine in `apps/api` (NodeNext + ESM).
+- **React 19** with the `react-jsx` runtime — no need to import `React` for JSX.
+
 ## Working in this repo
 
 ### When adding a new concept/lesson
