@@ -51,8 +51,6 @@ type Snapshot = {
   depth: number;
   processed: number;
   throughput: number;
-  eventLoopLagMs: number;
-  cpuPercent: number;
   workers: WorkerSnapshot[];
 };
 
@@ -60,8 +58,6 @@ const EMPTY_SNAPSHOT: Snapshot = {
   depth: 0,
   processed: 0,
   throughput: 0,
-  eventLoopLagMs: 0,
-  cpuPercent: 0,
   workers: [],
 };
 
@@ -119,24 +115,6 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function fmtMs(n: number): string {
-  if (n < 1) return `${n.toFixed(2)}ms`;
-  if (n < 10) return `${n.toFixed(1)}ms`;
-  return `${Math.round(n)}ms`;
-}
-
-function lagSeverity(ms: number): 'ok' | 'warn' | 'danger' {
-  if (ms >= 100) return 'danger';
-  if (ms >= 20) return 'warn';
-  return 'ok';
-}
-
-function cpuSeverity(percent: number): 'ok' | 'warn' | 'danger' {
-  if (percent >= 90) return 'danger';
-  if (percent >= 60) return 'warn';
-  return 'ok';
-}
-
 function Interactive({ pushLog, busy, setBusy }: LessonInteractiveProps) {
   const { snapshot, connected } = useQueueSnapshot();
   const [mode, setMode] = useState<WorkMode>('sleep');
@@ -169,7 +147,7 @@ function Interactive({ pushLog, busy, setBusy }: LessonInteractiveProps) {
         </span>
       </div>
 
-      <div className="queue-stats five">
+      <div className="queue-stats">
         <div className="stat-card stat-cyan">
           <span className="stat-label">Queue depth</span>
           <span className="stat-value">{fmt(snapshot.depth)}</span>
@@ -181,14 +159,6 @@ function Interactive({ pushLog, busy, setBusy }: LessonInteractiveProps) {
         <div className="stat-card stat-magenta">
           <span className="stat-label">Throughput</span>
           <span className="stat-value">{fmt(snapshot.throughput)} <small>/s</small></span>
-        </div>
-        <div className={`stat-card stat-gauge stat-${lagSeverity(snapshot.eventLoopLagMs)}`}>
-          <span className="stat-label">Loop lag p99</span>
-          <span className="stat-value">{fmtMs(snapshot.eventLoopLagMs)}</span>
-        </div>
-        <div className={`stat-card stat-gauge stat-${cpuSeverity(snapshot.cpuPercent)}`}>
-          <span className="stat-label">Node CPU</span>
-          <span className="stat-value">{Math.round(snapshot.cpuPercent)}<small>%</small></span>
         </div>
       </div>
 
@@ -278,22 +248,19 @@ const lesson: Lesson = {
       <ul>
         <li>
           <strong>Throughput plateaus</strong> around{' '}
-          <code>1 / durationMs × 1000</code> messages per second — one thread's
-          worth, no matter how many workers there are.
+          <code>1 / durationMs × 1000</code> messages per second per worker
+          process — one thread's worth, no matter how many in-process slots
+          there are.
         </li>
         <li>
-          <strong>Event-loop lag explodes.</strong> Every CPU block starves the
-          loop. Other requests (including the SSE stream rendering this
-          dashboard) get delayed by tens to hundreds of ms.
+          With a <em>single</em> worker process running, throughput stays
+          at that ceiling whether you run 10 slots or 500.
         </li>
         <li>
-          <strong>Node CPU pins at ~100%.</strong> One core is fully busy.
-          (You'd need a second OS thread to push past 100% — coming in Lesson 11.)
-        </li>
-        <li>
-          The dashboard itself updates more slowly, and worker cards may stay
-          stuck on "processing" because the thread is too busy to mark them
-          idle.
+          Inside that worker process, event-loop lag spikes and CPU pins to
+          ~100% — Lesson 11's dashboard exposes those per-container gauges
+          directly. Open it alongside this one in CPU mode to see the
+          thread saturate live.
         </li>
       </ul>
       <p>
