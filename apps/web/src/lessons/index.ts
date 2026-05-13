@@ -8,6 +8,7 @@ import plugins from './07-plugins.tsx';
 import errors from './08-errors.tsx';
 import queues from './09-queues.tsx';
 import ceiling from './10-ceiling.tsx';
+import distributed from './11-distributed.tsx';
 import type { Lesson } from './types.ts';
 
 export const lessons: Lesson[] = [
@@ -21,4 +22,5 @@ export const lessons: Lesson[] = [
   errors,
   queues,
   ceiling,
+  distributed,
 ];

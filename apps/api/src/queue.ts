@@ -1,20 +1,13 @@
 import { Redis } from 'ioredis';
-import { createHash } from 'node:crypto';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 
 export const QUEUE_KEY = 'learn-node:jobs';
 export const COUNTER_KEY = 'learn-node:counter';
-export const WORKER_COUNT = 500;
+export const PROCESSED_KEY = 'learn-node:processed';
+export const WORKERS_KEY = 'learn-node:workers';
+export const PROCESSES_KEY = 'learn-node:processes';
 
-export type WorkerStatus = 'idle' | 'processing';
 export type WorkMode = 'sleep' | 'cpu';
-
-export type WorkerState = {
-  id: number;
-  status: WorkerStatus;
-  currentMessageId: string | null;
-  lastFinishedAt: number | null;
-};
 
 export type Message = {
   id: string;
@@ -24,87 +17,37 @@ export type Message = {
   enqueuedAt: number;
 };
 
+export type WorkerState = {
+  id: string;
+  processId: string;
+  status: 'idle' | 'processing';
+  currentMessageId: string | null;
+  lastSeenAt: number;
+};
+
+export type ProcessStats = {
+  processId: string;
+  cpuPercent: number;
+  eventLoopLagMs: number;
+  concurrency: number;
+  startedAt: number;
+  lastSeenAt: number;
+};
+
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379';
+export const redis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
-function makeRedis(): Redis {
-  return new Redis(REDIS_URL, {
-    maxRetriesPerRequest: null,
-    enableReadyCheck: true,
-  });
-}
-
-// Shared client for commands the routes initiate (enqueue, depth, reset).
-export const redis = makeRedis();
-
-// Each worker needs its own connection because BRPOP blocks the connection.
-const workers: WorkerState[] = Array.from({ length: WORKER_COUNT }, (_, i) => ({
-  id: i + 1,
-  status: 'idle',
-  currentMessageId: null,
-  lastFinishedAt: null,
-}));
-
-let processedTotal = 0;
-
-// Rolling throughput: bucketed counts over the last 1 second.
-const THROUGHPUT_WINDOW_MS = 1000;
-const processedTimestamps: number[] = [];
-
-function recordProcessed(): void {
-  processedTotal++;
-  const now = Date.now();
-  processedTimestamps.push(now);
-  const cutoff = now - THROUGHPUT_WINDOW_MS;
-  while (processedTimestamps.length > 0 && processedTimestamps[0] < cutoff) {
-    processedTimestamps.shift();
-  }
-}
-
-function currentThroughput(): number {
-  const now = Date.now();
-  const cutoff = now - THROUGHPUT_WINDOW_MS;
-  while (processedTimestamps.length > 0 && processedTimestamps[0] < cutoff) {
-    processedTimestamps.shift();
-  }
-  return processedTimestamps.length;
-}
-
-// SLEEP mode: yields to the event loop the whole time. Zero CPU.
-async function sleepWork(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// CPU mode: blocks the thread with synchronous sha256 work for ~ms wall-clock.
-// Nothing else on the Node thread can make progress while this runs.
-function cpuWork(ms: number): void {
-  const buf = Buffer.alloc(64, 0);
-  const target = Date.now() + ms;
-  while (Date.now() < target) {
-    for (let i = 0; i < 500; i++) {
-      createHash('sha256').update(buf).digest();
-    }
-  }
-}
-
-async function doWork(msg: Message): Promise<void> {
-  if (msg.mode === 'cpu') {
-    cpuWork(msg.durationMs);
-  } else {
-    await sleepWork(msg.durationMs);
-  }
-}
-
-// --- Telemetry: event-loop lag and process CPU%, sampled in the background. ---
+// --- API process telemetry (separate from worker telemetry) ---
 const elHist = monitorEventLoopDelay({ resolution: 10 });
 elHist.enable();
 
-let cachedEventLoopLagMs = 0;
+let apiEventLoopLagMs = 0;
 setInterval(() => {
-  cachedEventLoopLagMs = elHist.percentile(99) / 1e6;
+  apiEventLoopLagMs = elHist.percentile(99) / 1e6;
   elHist.reset();
 }, 1000);
 
-let cachedCpuPercent = 0;
+let apiCpuPercent = 0;
 let prevCpu = process.cpuUsage();
 let prevWallMs = Date.now();
 setInterval(() => {
@@ -115,65 +58,42 @@ setInterval(() => {
   prevWallMs = wallNow;
   if (wallElapsedMs > 0) {
     const cpuMs = (delta.user + delta.system) / 1000;
-    cachedCpuPercent = Math.min(100 * (cpuMs / wallElapsedMs), 999);
+    apiCpuPercent = Math.min(100 * (cpuMs / wallElapsedMs), 999);
   }
 }, 500);
 
-async function workerLoop(state: WorkerState): Promise<void> {
-  const client = makeRedis();
-  while (true) {
-    try {
-      // BRPOP blocks until a message arrives. Timeout 0 = wait forever.
-      const result = await client.brpop(QUEUE_KEY, 0);
-      if (!result) continue;
-      const [, raw] = result;
+// --- Throughput: sampled deltas of the shared PROCESSED counter ---
+type Sample = { ts: number; processed: number };
+const samples: Sample[] = [];
 
-      let parsed: Partial<Message>;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        continue;
-      }
-      const msg: Message = {
-        id: parsed.id ?? 'unknown',
-        payload: parsed.payload ?? '',
-        mode: parsed.mode === 'cpu' ? 'cpu' : 'sleep',
-        durationMs: typeof parsed.durationMs === 'number' ? parsed.durationMs : 20,
-        enqueuedAt: parsed.enqueuedAt ?? Date.now(),
-      };
-
-      state.status = 'processing';
-      state.currentMessageId = msg.id;
-
-      await doWork(msg);
-
-      recordProcessed();
-      state.lastFinishedAt = Date.now();
-      state.status = 'idle';
-      state.currentMessageId = null;
-    } catch (err) {
-      // If Redis disconnects mid-loop, wait and try again.
-      // ioredis will reconnect under the hood.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
+function recordSample(processed: number): void {
+  const now = Date.now();
+  samples.push({ ts: now, processed });
+  const cutoff = now - 2000;
+  while (samples.length > 0 && samples[0].ts < cutoff) samples.shift();
 }
 
-export function startWorkers(): void {
-  for (const w of workers) {
-    void workerLoop(w);
+function throughput(processed: number): number {
+  const now = Date.now();
+  const targetTs = now - 1000;
+  let baseline: Sample | undefined;
+  for (const s of samples) {
+    if (s.ts >= targetTs) break;
+    baseline = s;
   }
+  if (!baseline) return 0;
+  return Math.max(0, processed - baseline.processed);
 }
 
+// --- Producer ---
 export async function enqueueMany(
   count: number,
   payload: string,
   mode: WorkMode,
   durationMs: number,
 ): Promise<number> {
-  // Use a pipeline for throughput; chunk to avoid one giant atomic command.
   const CHUNK = 1000;
-  let nextSeq = await redis.incrby(COUNTER_KEY, count);
+  const nextSeq = await redis.incrby(COUNTER_KEY, count);
   const startSeq = nextSeq - count + 1;
   let pushed = 0;
   for (let offset = 0; offset < count; offset += CHUNK) {
@@ -197,30 +117,81 @@ export async function enqueueMany(
 }
 
 export async function resetQueue(): Promise<void> {
-  await redis.del(QUEUE_KEY);
-  await redis.set(COUNTER_KEY, 0);
-  processedTotal = 0;
-  processedTimestamps.length = 0;
-  for (const w of workers) {
-    if (w.status === 'idle') w.currentMessageId = null;
-  }
+  await Promise.all([
+    redis.del(QUEUE_KEY),
+    redis.set(COUNTER_KEY, 0),
+    redis.set(PROCESSED_KEY, 0),
+  ]);
+  samples.length = 0;
 }
+
+// --- Snapshot: aggregates state from Redis (workers may be remote) ---
+const STALE_AFTER_MS = 3000;
 
 export async function getSnapshot(): Promise<{
   depth: number;
   processed: number;
   throughput: number;
-  eventLoopLagMs: number;
-  cpuPercent: number;
+  apiEventLoopLagMs: number;
+  apiCpuPercent: number;
   workers: WorkerState[];
+  processes: ProcessStats[];
 }> {
-  const depth = await redis.llen(QUEUE_KEY);
+  const [depthStr, processedStr, workersRaw, processesRaw] = await Promise.all([
+    redis.llen(QUEUE_KEY).then((n) => String(n)),
+    redis.get(PROCESSED_KEY).then((v) => v ?? '0'),
+    redis.hgetall(WORKERS_KEY),
+    redis.hgetall(PROCESSES_KEY),
+  ]);
+
+  const depth = Number(depthStr);
+  const processed = Number(processedStr);
+  recordSample(processed);
+
+  const now = Date.now();
+  const cutoff = now - STALE_AFTER_MS;
+
+  const workers: WorkerState[] = [];
+  const staleWorkerIds: string[] = [];
+  for (const [id, json] of Object.entries(workersRaw)) {
+    try {
+      const w = JSON.parse(json) as WorkerState;
+      if (w.lastSeenAt < cutoff) staleWorkerIds.push(id);
+      else workers.push(w);
+    } catch {
+      staleWorkerIds.push(id);
+    }
+  }
+
+  const processes: ProcessStats[] = [];
+  const staleProcessIds: string[] = [];
+  for (const [id, json] of Object.entries(processesRaw)) {
+    try {
+      const p = JSON.parse(json) as ProcessStats;
+      if (p.lastSeenAt < cutoff) staleProcessIds.push(id);
+      else processes.push(p);
+    } catch {
+      staleProcessIds.push(id);
+    }
+  }
+
+  if (staleWorkerIds.length > 0) {
+    void redis.hdel(WORKERS_KEY, ...staleWorkerIds);
+  }
+  if (staleProcessIds.length > 0) {
+    void redis.hdel(PROCESSES_KEY, ...staleProcessIds);
+  }
+
+  workers.sort((a, b) => a.id.localeCompare(b.id));
+  processes.sort((a, b) => a.processId.localeCompare(b.processId));
+
   return {
     depth,
-    processed: processedTotal,
-    throughput: currentThroughput(),
-    eventLoopLagMs: cachedEventLoopLagMs,
-    cpuPercent: cachedCpuPercent,
-    workers: workers.map((w) => ({ ...w })),
+    processed,
+    throughput: throughput(processed),
+    apiEventLoopLagMs,
+    apiCpuPercent,
+    workers,
+    processes,
   };
 }

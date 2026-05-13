@@ -303,6 +303,12 @@ const lesson: Lesson = {
         or — what we'll do in Lesson 11 — multiple Node containers all
         consuming the same Redis queue.
       </p>
+      <p>
+        <strong>Prereq:</strong> workers now live in{' '}
+        <code>apps/worker</code> — start at least one before enqueuing
+        (<code>docker compose up -d --scale worker=1</code> or{' '}
+        <code>pnpm -F @learn-node/worker dev</code>).
+      </p>
     </>
   ),
   code,

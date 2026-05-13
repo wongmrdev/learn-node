@@ -55,6 +55,22 @@ importers:
         specifier: ^6.0.0
         version: 6.4.2(@types/node@24.12.4)(tsx@4.21.0)
 
+  apps/worker:
+    dependencies:
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.12.4
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
 packages:
 
   '@babel/code-frame@7.29.0':

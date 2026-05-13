@@ -236,10 +236,16 @@ const lesson: Lesson = {
         are not OS threads or processes. They're async functions on{' '}
         <strong>one</strong> Node thread, each holding its own Redis connection.
         The "work" each one does is a <code>setTimeout</code> — which doesn't
-        burn CPU at all. That's why bumping <code>WORKER_COUNT</code> to 500
-        gave you 10× throughput: nothing was actually competing for the thread.
-        Lesson 10 unmasks this; Lesson 11 escapes it. For now, take this lesson
-        as the <em>shape</em> of a queue, not its real performance.
+        burn CPU at all. That's why bumping concurrency to 500 gives you 10×
+        throughput: nothing is actually competing for the thread. Lesson 10
+        unmasks this; Lesson 11 escapes it. For now, take this lesson as the{' '}
+        <em>shape</em> of a queue, not its real performance.
+      </p>
+      <p>
+        <strong>Prereq from Lesson 11 onward:</strong> workers live in the{' '}
+        <code>apps/worker</code> package now (not in the API). Start them with{' '}
+        <code>docker compose up -d --scale worker=1</code> or{' '}
+        <code>pnpm -F @learn-node/worker dev</code> before enqueuing.
       </p>
       <p>
         When a request triggers work that's slow, flaky, or expensive — sending

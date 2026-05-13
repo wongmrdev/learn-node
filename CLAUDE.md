@@ -36,10 +36,22 @@ Every package, example, and lesson here exists to demonstrate a Node.js or Fasti
 
 ## Current layout
 
-- `apps/api` — Fastify server (`@learn-node/api`). Dev: `tsx watch`. Listens on `127.0.0.1:3000`. All HTTP routes live under `/api/*`.
+- `apps/api` — Fastify server (`@learn-node/api`). Dev: `tsx watch`. Listens on `127.0.0.1:3000`. All HTTP routes live under `/api/*`. **Producer/monitor only — does not run any queue workers in-process.**
 - `apps/web` — Vite + React 19 UI (`@learn-node/web`). Dev: `vite` on `5173`. Proxies `/api` → `http://localhost:3000` so the browser never hits CORS in dev.
+- `apps/worker` — standalone queue worker (`@learn-node/worker`). Pure ESM Node service that `BRPOP`s from Redis and reports its state into Redis hashes (`learn-node:workers`, `learn-node:processes`). Containerized via `apps/worker/Dockerfile`; scale with `docker compose up --scale worker=N`. Dev outside Docker: `pnpm -F @learn-node/worker dev`.
 - `packages/*` — shared libraries (none yet).
 - `skills/` — reusable patterns/playbooks for agents working in this repo.
+
+## Local stack
+
+For lessons 09+ the typical dev loop is:
+
+```
+docker compose up -d redis              # always
+docker compose up -d --scale worker=4   # or: pnpm -F @learn-node/worker dev
+pnpm -F @learn-node/api dev
+pnpm -F @learn-node/web dev
+```
 
 ## Conventions
 

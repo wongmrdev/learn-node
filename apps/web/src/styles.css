@@ -656,11 +656,104 @@ body::before {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--text-dim);
-  letter-spacing: 0.1em;
-  padding: 18px;
+  letter-spacing: 0.06em;
+  padding: 24px;
   text-align: center;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+  line-height: 1.7;
+}
+
+.worker-grid-empty code {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.queue-status-spacer { flex: 1; }
+
+.process-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.process-card {
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg-deep));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.process-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.process-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
+.process-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.process-cpu {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+}
+
+.process-cpu-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.process-cpu-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: currentColor;
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  text-align: right;
+}
+
+.process-cpu-bar {
+  display: block;
+  width: 120px;
+  height: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.process-cpu-bar-fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transition: width 220ms ease;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .worker-card.busy {

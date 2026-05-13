@@ -1,6 +1,6 @@
 import Fastify, { type FastifyPluginAsync } from 'fastify';
 import cors from '@fastify/cors';
-import { enqueueMany, getSnapshot, resetQueue, startWorkers } from './queue.js';
+import { enqueueMany, getSnapshot, resetQueue } from './queue.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -211,8 +211,6 @@ app.get('/api/queue/stream', async (req, reply) => {
   }
   reply.raw.end();
 });
-
-startWorkers();
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '127.0.0.1' });
